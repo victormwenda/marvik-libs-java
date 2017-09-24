@@ -41,7 +41,7 @@ public final class Downloader {
                 URLConnection urlConnection = url.openConnection();
                 InputStream inputStream = urlConnection.getInputStream();
 
-                String filename = new File(fileUri).getName();
+                String filename = new File(filePath).getName();
 
                 int count = 0;
                 byte[] buffer = new byte[1024];

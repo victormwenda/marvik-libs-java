@@ -6,10 +6,13 @@ import com.marvik.libs.java.security.utils.Patterns;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.UnknownServiceException;
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 
-public abstract class WebServicesProvider {
+public abstract class WebServicesProvider<K, V> {
 
     /**
      * HTTP ERROR
@@ -37,21 +40,23 @@ public abstract class WebServicesProvider {
     public static final int ERROR_TYPE_EMPTY_QUERY = 5;
 
     //The query to send
-    private String query;
+    protected String query;
 
     //The url
-    private String url;
+    protected String url;
 
 
     //url builder to help in building url
-    private URLBuilder urlBuilder;
-
-    //Http Request Action
-    private HTTPRequestAction HTTPRequestAction;
+    protected URLBuilder urlBuilder;
 
     //The HTTP Response
-    private String httpResponse;
+    protected String httpResponse;
 
+    //The request properties sent to the server
+    protected Map<K, V> requestProperties;
+
+    public static final String REQUEST_GET = "GET";
+    public static final String REQUEST_POST = "POST";
 
     /**
      * Web services provide class that provides apis
@@ -61,11 +66,12 @@ public abstract class WebServicesProvider {
      * @param url
      * @param query
      */
-    public WebServicesProvider(String url, String query) {
+    public WebServicesProvider(String url, String query, Map<K, V> requestProperties) {
         urlBuilder = new URLBuilder(url);
 
         setQuery(query);
         setUrl(url);
+        setRequestProperties(requestProperties);
 
     }
 
@@ -117,6 +123,14 @@ public abstract class WebServicesProvider {
         return query;
     }
 
+    public void setRequestProperties(Map<K, V> properties) {
+        this.requestProperties = properties;
+    }
+
+    public Map<K, V> getRequestProperties() {
+        return requestProperties;
+    }
+
     /**
      * Returns the query that is appended to the url while sending HTTP Request
      *
@@ -159,45 +173,96 @@ public abstract class WebServicesProvider {
         URL url = new URL(getUrl());
         HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
         httpURLConnection.setRequestMethod(requestMethod);
-        //onConnect(httpURLConnection.getResponseCode());
-        httpURLConnection.setDoOutput(true);
-        httpURLConnection.setDoInput(true);
-
-        OutputStream outputStream = httpURLConnection.getOutputStream();
-        DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
-        if (getQuery() != null) {
-            dataOutputStream.writeBytes(getQuery());
-            onSendQuery();
-        }
-        dataOutputStream.flush();
-        dataOutputStream.close();
 
 
-        InputStream inputStream = httpURLConnection.getInputStream();
-        onReceiveResponse();
-
-        InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
-
-        BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-
-        StringBuilder builder = new StringBuilder();
-
-        while ((dataStream = bufferedReader.readLine()) != null) {
-            onReadResponse(dataStream);
-
-            builder.append(dataStream);
-            onAppendResponse(builder.toString());
+        if (getRequestProperties() != null) {
+            for (Map.Entry<K, V> entries : getRequestProperties().entrySet()) {
+                httpURLConnection.setRequestProperty(String.valueOf(entries.getKey()), String.valueOf(entries.getValue()));
+            }
         }
 
-        dataStream = builder.toString();
+
+        if (requestMethod.equalsIgnoreCase(REQUEST_GET)) {
+
+            httpURLConnection.setDoInput(true);
+
+            onConnect(httpURLConnection.getResponseCode());
+
+            InputStream inputStream = httpURLConnection.getInputStream();
+
+            onReceiveResponse();
+
+            InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+
+            BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+
+            StringBuilder builder = new StringBuilder();
+
+            while ((dataStream = bufferedReader.readLine()) != null) {
+                onReadResponse(dataStream);
+
+                builder.append(dataStream);
+                onAppendResponse(builder.toString());
+            }
+
+            dataStream = builder.toString();
 
 
-        setHTTPResponse(dataStream);
+            setHTTPResponse(dataStream);
 
-        onFinishedReadingResponse(dataStream);
+            onFinishedReadingResponse(dataStream);
 
 
-        return dataStream;
+            return dataStream;
+
+        } else if (requestMethod.equalsIgnoreCase(REQUEST_POST)) {
+
+            httpURLConnection.setDoOutput(true);
+
+            OutputStream outputStream = httpURLConnection.getOutputStream();
+            DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+
+            if (getQuery() != null) {
+                dataOutputStream.writeBytes(getQuery());
+                onSendQuery();
+            }
+
+            dataOutputStream.flush();
+            dataOutputStream.close();
+
+            onConnect(httpURLConnection.getResponseCode());
+
+            InputStream inputStream = httpURLConnection.getInputStream();
+
+            onReceiveResponse();
+
+            InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+
+            BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+
+            StringBuilder builder = new StringBuilder();
+
+            while ((dataStream = bufferedReader.readLine()) != null) {
+                onReadResponse(dataStream);
+
+                builder.append(dataStream);
+                onAppendResponse(builder.toString());
+            }
+
+            dataStream = builder.toString();
+
+
+            setHTTPResponse(dataStream);
+
+            onFinishedReadingResponse(dataStream);
+
+
+            return dataStream;
+
+        } else {
+            throw new UnknownServiceException(String.format(Locale.getDefault(), "Unknown request method %s ", requestMethod));
+        }
+
 
     }
 
@@ -207,6 +272,7 @@ public abstract class WebServicesProvider {
      * @param url
      * @return
      */
+
     protected boolean isValidUrl(String url) {
         return Pattern.matches(Patterns.WEB_URL.pattern(), url);
     }
@@ -294,7 +360,7 @@ public abstract class WebServicesProvider {
     public abstract void onConnectionError(int errorCode);
 
     /**
-     * WebServicesProvider#onHTTPResultsFailed
+     * AndroidWebServicesProvider#onHTTPResultsFailed
      * <p>
      * Called when a the http results are successful
      *
@@ -307,7 +373,7 @@ public abstract class WebServicesProvider {
     public abstract void onHttpResultsFailed(String resultText, String client, String clientAction, String clientIntent, String build);
 
     /**
-     * WebServicesProvider#onHTTPResultsSuccessful
+     * AndroidWebServicesProvider#onHTTPResultsSuccessful
      * <p>
      * Called when a the http results are successful
      *
@@ -319,23 +385,6 @@ public abstract class WebServicesProvider {
      */
     public abstract void onHttpResultsSuccessful(String resultText, String client, String clientAction, String clientIntent, String build);
 
-    /**
-     * Set the HTTP Request Action
-     *
-     * @param HTTPRequestAction the http request action
-     */
-    public void setHTTPRequestAction(HTTPRequestAction HTTPRequestAction) {
-        this.HTTPRequestAction = HTTPRequestAction;
-    }
-
-    /**
-     * Get the HTTP Request Action
-     *
-     * @return HTTPRequestAction
-     */
-    public HTTPRequestAction getHTTPRequestAction() {
-        return HTTPRequestAction;
-    }
 
     /**
      * @return the set http response
@@ -346,6 +395,7 @@ public abstract class WebServicesProvider {
 
     /**
      * Set HTTP Response
+     *
      * @param httpResponse
      */
     public void setHTTPResponse(String httpResponse) {
