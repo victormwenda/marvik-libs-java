@@ -1,11 +1,17 @@
 package com.marvik.libs.java.net;
 
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+
 /**
  * URL Builder
  * <p/>
  * Provides apis for quickly building URLS
  */
 public class URLBuilder {
+
+    private Map<String, String> mKeyValuePairs;
 
     private String url;
 
@@ -46,11 +52,13 @@ public class URLBuilder {
      * @return a cascade object of this class
      */
     public URLBuilder append(String key, String value) {
-        if (getQuery() == null) {
-            query = key + "=" + value;
-        } else {
-            query += "&" + key + "=" + value;
+
+        if (mKeyValuePairs == null) {
+            mKeyValuePairs = new HashMap<>();
         }
+
+        mKeyValuePairs.put(key, value);
+
         return this;
     }
 
@@ -60,6 +68,21 @@ public class URLBuilder {
      * @return
      */
     public URLBuilder build() {
+
+        StringBuilder builder = new StringBuilder();
+
+        int index = 0;
+
+        for (Map.Entry<String, String> entry : mKeyValuePairs.entrySet()) {
+            builder.append(String.format(Locale.getDefault(), "%s=%s", entry.getKey(), entry.getValue()));
+
+            if (index < mKeyValuePairs.entrySet().size() - 1) {
+                builder.append("&");
+            }
+        }
+
+        query = builder.toString();
+
         return this;
     }
 
@@ -69,7 +92,8 @@ public class URLBuilder {
      * @return
      */
     public String buildUpon() {
-        return getUrl() + "?" + getQuery();
+        build();
+        return String.format(Locale.getDefault(), "%s?%s", getUrl(), getQuery());
     }
 
     /**
@@ -80,26 +104,5 @@ public class URLBuilder {
     @Override
     public String toString() {
         return buildUpon();
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
-    public void setQuery(String query) throws IllegalAccessException {
-        throw new IllegalAccessException("Cannot set query[" + query + "]");
-    }
-
-    public void resetQuery() {
-        this.query = "";
-    }
-
-    public void resetUrl() {
-        this.url = "";
-    }
-
-    public void resetAll() {
-        resetUrl();
-        resetQuery();
     }
 }

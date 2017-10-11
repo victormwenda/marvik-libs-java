@@ -1,15 +1,16 @@
 package com.marvik.libs.java.net;
 
-
-import com.marvik.libs.java.security.utils.Patterns;
-
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.UnknownServiceException;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 
 public abstract class WebServicesProvider<K, V> {
@@ -57,6 +58,8 @@ public abstract class WebServicesProvider<K, V> {
 
     public static final String REQUEST_GET = "GET";
     public static final String REQUEST_POST = "POST";
+    public static final String REQUEST_PUT = "PUT";
+    public static final String REQUEST_DELETE = "DELETE";
 
     /**
      * Web services provide class that provides apis
@@ -170,6 +173,8 @@ public abstract class WebServicesProvider<K, V> {
             throw new IllegalArgumentException("Invalid URL [" + getUrl() + "]");
         }
 
+        onStart();
+
         URL url = new URL(getUrl());
         HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
         httpURLConnection.setRequestMethod(requestMethod);
@@ -215,7 +220,8 @@ public abstract class WebServicesProvider<K, V> {
 
             return dataStream;
 
-        } else if (requestMethod.equalsIgnoreCase(REQUEST_POST)) {
+        } else if (requestMethod.equalsIgnoreCase(REQUEST_POST) ||
+                requestMethod.equalsIgnoreCase(REQUEST_PUT)  ) {
 
             httpURLConnection.setDoOutput(true);
 
@@ -256,6 +262,39 @@ public abstract class WebServicesProvider<K, V> {
 
             onFinishedReadingResponse(dataStream);
 
+            onFinish();
+
+            return dataStream;
+
+        } else if (requestMethod.equalsIgnoreCase(REQUEST_DELETE)  ) {
+
+            httpURLConnection.setDoInput(true);
+
+            onConnect(httpURLConnection.getResponseCode());
+
+            InputStream inputStream = httpURLConnection.getInputStream();
+
+            onReceiveResponse();
+
+            InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+
+            BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+
+            StringBuilder builder = new StringBuilder();
+
+            while ((dataStream = bufferedReader.readLine()) != null) {
+                onReadResponse(dataStream);
+
+                builder.append(dataStream);
+                onAppendResponse(builder.toString());
+            }
+
+            dataStream = builder.toString();
+
+
+            setHTTPResponse(dataStream);
+
+            onFinishedReadingResponse(dataStream);
 
             return dataStream;
 
@@ -274,7 +313,7 @@ public abstract class WebServicesProvider<K, V> {
      */
 
     protected boolean isValidUrl(String url) {
-        return Pattern.matches(Patterns.WEB_URL.pattern(), url);
+        return url != null;
     }
 
     /**
@@ -298,11 +337,36 @@ public abstract class WebServicesProvider<K, V> {
     }
 
     /**
+     * Performs a PUT HTTP Request and return the server response in form of a String
+     *
+     * @return server response
+     * @throws IOException
+     */
+    public String doPutHttpRequest() throws IOException {
+        return doHttpRequest("PUT");
+    }
+
+    /**
+     * Performs a DELETE HTTP Request and return the server response in form of a String
+     *
+     * @return server response
+     * @throws IOException
+     */
+    public String doDeleteHttpRequest() throws IOException {
+        return doHttpRequest("DELETE");
+    }
+
+    /**
      * Called when the url is set
      *
      * @return the set url
      */
     public abstract String onSetURL();
+
+    /**
+     * Called when the HTTP Process starts
+     */
+    public abstract void onStart();
 
 
     /**
@@ -351,6 +415,11 @@ public abstract class WebServicesProvider<K, V> {
      * @param readResponse
      */
     public abstract void onFinishedReadingResponse(String readResponse);
+
+    /**
+     * Called when the HTTP Process ends
+     */
+    public abstract void onFinish();
 
     /**
      * Called when an error has occurred making a HTTP_CONNECTION
