@@ -3,8 +3,10 @@ package com.marvik.libs.java.security.utils;
 
 import com.marvik.libs.java.security.encryption.EncryptionAlgorithm;
 
+import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 /**
  * SecurityUtils
@@ -46,5 +48,27 @@ public class SecurityUtils {
             e.printStackTrace();
         }
         return encryptedText;
+    }
+
+    /**
+     * Convert a string into a byte array
+     *
+     * @param text
+     * @param charset
+     * @return
+     */
+    public static String toBytesString(String text, Charset charset) {
+        return Arrays.toString(text.getBytes(charset));
+    }
+
+    /**
+     * Converts bytes array to string
+     *
+     * @param bytes
+     * @param charset
+     * @return
+     */
+    public static String bytesToString(byte[] bytes, Charset charset) {
+        return new String(bytes, charset);
     }
 }
