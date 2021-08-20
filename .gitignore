@@ -74,4 +74,4 @@ fabric.properties
 *.iml
 
 #Ignore the Main.java file which is used for making simple tests
-src/com/marvik/libs/java/Main.java
+src/main/java/com/marvik/libs/java/Main.java
